@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import argparse, asyncio, importlib, inspect, ipaddress, math, os, re, select, shutil, signal, socket, sys, termios, time, traceback, tty
+import argparse, asyncio, importlib.util, inspect, ipaddress, math, os, re, select, shutil, signal, socket, sys, termios, time, traceback, tty
 from datetime import datetime
 
 try:
@@ -17,7 +17,7 @@ from autorecon.io import slugify, e, fformat, cprint, debug, info, warn, error, 
 from autorecon.plugins import Pattern, PortScan, ServiceScan, Report, AutoRecon
 from autorecon.targets import Target, Service
 
-VERSION = "2.0.19"
+VERSION = "2.0.21"
 
 if not os.path.exists(config['config_dir']):
 	shutil.rmtree(config['config_dir'], ignore_errors=True, onerror=None)
@@ -911,19 +911,17 @@ async def run():
 		plugins_dirs.append(config['add_plugins_dir'])
 
 	for plugins_dir in plugins_dirs:
-		for plugin_file in os.listdir(plugins_dir):
+		for plugin_file in sorted(os.listdir(plugins_dir)):
 			if not plugin_file.startswith('_') and plugin_file.endswith('.py'):
 
 				dirname, filename = os.path.split(os.path.join(plugins_dir, plugin_file))
 				dirname = os.path.abspath(dirname)
 
-				# Temporarily insert the plugin directory into the sys.path so importing plugins works.
-				sys.path.insert(1, dirname)
-
 				try:
-					plugin = importlib.import_module(filename[:-3])
-					# Remove the plugin directory from the path after import.
-					sys.path.pop(1)
+					spec = importlib.util.spec_from_file_location("autorecon." + filename[:-3], os.path.join(dirname, filename))
+					plugin = importlib.util.module_from_spec(spec)
+					spec.loader.exec_module(plugin)
+
 					clsmembers = inspect.getmembers(plugin, predicate=inspect.isclass)
 					for (_, c) in clsmembers:
 						if c.__module__ in ['autorecon.plugins', 'autorecon.targets']:
